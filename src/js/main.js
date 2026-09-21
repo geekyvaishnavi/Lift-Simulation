@@ -1,11 +1,61 @@
 const MAX_FLOORS = 20;
 const MAX_LIFTS = 10;
 
+
 const state = {
   floors: 0,
-  lifts: [],
-  pendingRequests: []
+  lifts: [],           // { id, currentFloor, targetFloor, isBusy }
+  pendingRequests: []  
 };
+
+const liftElements = new Map();
+
+function createLift(id) {
+  return {
+    id,
+    currentFloor: 1,
+    targetFloor: null,  
+    isBusy: false       
+  };
+}
+
+function initStore(floors, lifts) {
+  state.floors = floors;
+  state.lifts = Array.from({ length: lifts }, (_, i) => createLift(i + 1));
+  state.pendingRequests = [];
+  liftElements.clear();
+}
+
+function getFreeLifts() {
+  return state.lifts.filter((lift) => !lift.isBusy);
+}
+
+function isFloorCovered(floor) {
+  return state.lifts.some(
+    (lift) => lift.targetFloor === floor || (!lift.isBusy && lift.currentFloor === floor)
+  );
+}
+
+function assignLift(lift, floor) {
+  lift.isBusy = true;
+  lift.targetFloor = floor;
+}
+
+function releaseLift(lift) {
+  lift.currentFloor = lift.targetFloor;
+  lift.targetFloor = null;
+  lift.isBusy = false;
+}
+
+function enqueueRequest(floor) {
+  state.pendingRequests.push(floor);
+}
+
+function dequeueRequest() {
+  return state.pendingRequests.shift() ?? null;
+}
+
+
 
 const form = document.getElementById('setup-form');
 const floorsInput = document.getElementById('floors-input');
@@ -29,14 +79,6 @@ function validate(floors, lifts) {
   return null;
 }
 
-function buildLifts(count) {
-  const lifts = [];
-  for (let id = 1; id <= count; id += 1) {
-    lifts.push({ id, currentFloor: 1, isBusy: false });
-  }
-  return lifts;
-}
-
 form.addEventListener('submit', (event) => {
   event.preventDefault();
 
@@ -51,10 +93,7 @@ form.addEventListener('submit', (event) => {
   }
 
   errorMsg.textContent = '';
-
-  state.floors = floors;
-  state.lifts = buildLifts(lifts);
-  state.pendingRequests = [];
+  initStore(floors, lifts);
 
   simulation.classList.remove('hidden');
   console.log('state', state);
