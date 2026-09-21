@@ -55,6 +55,10 @@ function dequeueRequest() {
   return state.pendingRequests.shift() ?? null;
 }
 
+function isQueued(floor) {
+  return state.pendingRequests.includes(floor);
+}
+
 const DOOR_HALVES = ['left', 'right'];
 
 function floorOffset(floor) {
@@ -116,6 +120,7 @@ function renderSimulation() {
 
   const building = document.createElement('div');
   building.className = 'building';
+  building.addEventListener('click', onBuildingClick);
 
   for (let floor = state.floors; floor >= 1; floor -= 1) {
     building.appendChild(createFloorRow(floor));
@@ -132,6 +137,51 @@ function renderSimulation() {
 
   building.appendChild(shaft);
   simulation.appendChild(building);
+}
+
+function onBuildingClick(event) {
+  const button = event.target.closest('.call-btn');
+  if (!button) return;
+  handleCall(Number(button.dataset.floor));
+}
+
+function handleCall(floor) {
+  if (isFloorCovered(floor) || isQueued(floor)) return;
+  dispatch(floor);
+}
+
+function nearestFreeLift(floor) {
+  const free = getFreeLifts();
+  if (free.length === 0) return null;
+
+  return free.reduce((best, lift) =>
+    Math.abs(lift.currentFloor - floor) < Math.abs(best.currentFloor - floor) ? lift : best
+  );
+}
+
+function dispatch(floor) {
+  const lift = nearestFreeLift(floor);
+  if (!lift) {
+    enqueueRequest(floor);
+    return;
+  }
+
+  assignLift(lift, floor);
+  moveLift(lift);
+}
+
+function onLiftArrived(lift) {
+  releaseLift(lift);
+
+  const next = dequeueRequest();
+  if (next !== null) {
+    dispatch(next);
+  }
+}
+
+function moveLift(lift) {
+  liftElements.get(lift.id).style.transform = floorOffset(lift.targetFloor);
+  onLiftArrived(lift);
 }
 
 
