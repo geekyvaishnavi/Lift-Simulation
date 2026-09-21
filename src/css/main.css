@@ -170,11 +170,14 @@ button[type="submit"]:hover {
   border: 2px solid var(--text);
   border-radius: 4px;
   overflow: hidden;
+  /* Duration is set from JS; it depends on how far the lift travels. */
+  transition: transform 0s linear;
 }
 
 .door {
   width: 50%;
   background: #9aa1ad;
+  transition: transform 2.5s linear; /* keep in sync with DOOR_MS */
 }
 
 .door-left {
@@ -184,6 +187,10 @@ button[type="submit"]:hover {
 
 .door-right {
   transform-origin: right;
+}
+
+.lift.doors-open .door {
+  transform: scaleX(0);
 }
 
 .hidden {

@@ -1,6 +1,9 @@
 const MAX_FLOORS = 20;
 const MAX_LIFTS = 10;
 
+const FLOOR_TRAVEL_MS = 2000;
+const DOOR_MS = 2500; 
+
 
 const state = {
   floors: 0,
@@ -179,8 +182,25 @@ function onLiftArrived(lift) {
   }
 }
 
-function moveLift(lift) {
-  liftElements.get(lift.id).style.transform = floorOffset(lift.targetFloor);
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+
+async function moveLift(lift) {
+  const element = liftElements.get(lift.id);
+  const travelMs = Math.abs(lift.targetFloor - lift.currentFloor) * FLOOR_TRAVEL_MS;
+
+  element.style.transitionDuration = `${travelMs}ms`;
+  element.style.transform = floorOffset(lift.targetFloor);
+  await wait(travelMs);
+
+  element.classList.add('doors-open');
+  await wait(DOOR_MS);
+
+  element.classList.remove('doors-open');
+  await wait(DOOR_MS);
+
   onLiftArrived(lift);
 }
 
