@@ -55,6 +55,85 @@ function dequeueRequest() {
   return state.pendingRequests.shift() ?? null;
 }
 
+const DOOR_HALVES = ['left', 'right'];
+
+function floorOffset(floor) {
+  return `translateY(calc(${-(floor - 1)} * var(--floor-height)))`;
+}
+
+function createCallButton(floor, direction) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `call-btn call-${direction}`;
+  button.dataset.floor = floor;
+  button.dataset.direction = direction;
+  button.textContent = direction === 'up' ? 'Up' : 'Down';
+  return button;
+}
+
+function createFloorRow(floor) {
+  const row = document.createElement('div');
+  row.className = 'floor';
+  row.dataset.floor = floor;
+
+  const controls = document.createElement('div');
+  controls.className = 'floor-controls';
+
+  if (floor < state.floors) {
+    controls.appendChild(createCallButton(floor, 'up'));
+  }
+  if (floor > 1) {
+    controls.appendChild(createCallButton(floor, 'down'));
+  }
+
+  const label = document.createElement('span');
+  label.className = 'floor-label';
+  label.textContent = `Floor ${floor}`;
+
+  row.append(controls, label);
+  return row;
+}
+
+function createLiftElement(lift) {
+  const element = document.createElement('div');
+  element.className = 'lift';
+  element.dataset.liftId = lift.id;
+  element.style.left = `calc(${lift.id - 1} * (var(--lift-width) + var(--lift-gap)))`;
+  element.style.transform = floorOffset(lift.currentFloor);
+
+  DOOR_HALVES.forEach((side) => {
+    const door = document.createElement('div');
+    door.className = `door door-${side}`;
+    element.appendChild(door);
+  });
+
+  return element;
+}
+
+function renderSimulation() {
+  simulation.innerHTML = '';
+  liftElements.clear();
+
+  const building = document.createElement('div');
+  building.className = 'building';
+
+  for (let floor = state.floors; floor >= 1; floor -= 1) {
+    building.appendChild(createFloorRow(floor));
+  }
+
+  const shaft = document.createElement('div');
+  shaft.className = 'shaft';
+
+  state.lifts.forEach((lift) => {
+    const element = createLiftElement(lift);
+    liftElements.set(lift.id, element);
+    shaft.appendChild(element);
+  });
+
+  building.appendChild(shaft);
+  simulation.appendChild(building);
+}
+
 
 
 const form = document.getElementById('setup-form');
@@ -94,7 +173,7 @@ form.addEventListener('submit', (event) => {
 
   errorMsg.textContent = '';
   initStore(floors, lifts);
+  renderSimulation();
 
   simulation.classList.remove('hidden');
-  console.log('state', state);
 });

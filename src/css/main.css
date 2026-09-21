@@ -1,5 +1,8 @@
 :root {
   --floor-height: 120px;
+  --lift-width: 60px;
+  --lift-gap: 20px;
+  --controls-width: 150px;
   --text: #1c1c1e;
   --muted: #6b6b70;
   --border: #d8d8dd;
@@ -95,6 +98,92 @@ button[type="submit"]:hover {
 
 #simulation {
   margin-top: 24px;
+}
+
+.building {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.floor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: var(--floor-height);
+  padding: 0 16px;
+}
+
+/* Lines between floors only; the building border closes off top and bottom. */
+.floor + .floor {
+  border-top: 2px solid var(--border);
+}
+
+.floor-controls {
+  display: flex;
+  gap: 8px;
+  width: var(--controls-width);
+}
+
+.call-btn {
+  min-width: 60px;
+  min-height: 44px;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.call-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.floor-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Overlays the floor rows; lifts sit at the bottom and are pushed up
+   one --floor-height per floor. */
+.shaft {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--controls-width) + 32px);
+  right: 100px;
+  pointer-events: none;
+}
+
+.lift {
+  position: absolute;
+  bottom: 8px;
+  display: flex;
+  width: var(--lift-width);
+  height: calc(var(--floor-height) - 16px);
+  background: #eceef3;
+  border: 2px solid var(--text);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.door {
+  width: 50%;
+  background: #9aa1ad;
+}
+
+.door-left {
+  transform-origin: left;
+  border-right: 1px solid #7c828d;
+}
+
+.door-right {
+  transform-origin: right;
 }
 
 .hidden {
