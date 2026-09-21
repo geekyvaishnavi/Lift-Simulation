@@ -3,6 +3,8 @@
   --lift-width: 60px;
   --lift-gap: 20px;
   --controls-width: 150px;
+  --shaft-gap: 32px;
+  --label-reserve: 100px;
   --text: #1c1c1e;
   --muted: #6b6b70;
   --border: #d8d8dd;
@@ -98,10 +100,18 @@ button[type="submit"]:hover {
 
 #simulation {
   margin-top: 24px;
+  /* The shaft is as wide as the lifts need; scroll it instead of clipping. */
+  overflow-x: auto;
 }
 
 .building {
   position: relative;
+  /* Room for the controls, every lift, and the floor label. */
+  min-width: calc(
+    var(--controls-width) + var(--shaft-gap) +
+    var(--lift-count, 1) * (var(--lift-width) + var(--lift-gap)) +
+    var(--label-reserve)
+  );
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -147,6 +157,7 @@ button[type="submit"]:hover {
 .floor-label {
   font-size: 0.85rem;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 /* Overlays the floor rows; lifts sit at the bottom and are pushed up
@@ -155,8 +166,8 @@ button[type="submit"]:hover {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--controls-width) + 32px);
-  right: 100px;
+  left: calc(var(--controls-width) + var(--shaft-gap));
+  right: var(--label-reserve);
   pointer-events: none;
 }
 
@@ -198,6 +209,19 @@ button[type="submit"]:hover {
 }
 
 @media (max-width: 480px) {
+  :root {
+    --floor-height: 90px;
+    --lift-width: 44px;
+    --lift-gap: 12px;
+    --controls-width: 120px;
+    --shaft-gap: 16px;
+    --label-reserve: 16px;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
   #setup-form {
     flex-direction: column;
     align-items: stretch;
@@ -206,5 +230,27 @@ button[type="submit"]:hover {
   input[type="number"],
   button[type="submit"] {
     width: 100%;
+  }
+
+  .setup {
+    padding: 16px;
+  }
+
+  /* Label above the buttons, so the whole right side is shaft. */
+  .floor {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 12px;
+  }
+
+  /* Stays a 44px tap target, just narrower. */
+  .call-btn {
+    min-width: 56px;
+  }
+
+  .floor-label {
+    font-size: 0.8rem;
   }
 }

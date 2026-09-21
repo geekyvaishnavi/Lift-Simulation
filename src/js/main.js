@@ -123,6 +123,7 @@ function renderSimulation() {
 
   const building = document.createElement('div');
   building.className = 'building';
+  building.style.setProperty('--lift-count', state.lifts.length);
   building.addEventListener('click', onBuildingClick);
 
   for (let floor = state.floors; floor >= 1; floor -= 1) {
