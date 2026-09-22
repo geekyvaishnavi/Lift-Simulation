@@ -390,7 +390,6 @@ form.addEventListener('submit', (event) => {
   const error = validate(floors, lifts);
   if (error) {
     errorMsg.textContent = error;
-    simulation.classList.add('hidden');
     return;
   }
 
