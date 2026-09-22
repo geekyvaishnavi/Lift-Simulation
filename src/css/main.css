@@ -93,6 +93,12 @@ button[type="submit"]:hover {
   background: var(--accent-strong);
 }
 
+button[type="submit"]:disabled {
+  color: var(--muted);
+  background: var(--border);
+  cursor: not-allowed;
+}
+
 #error-msg {
   min-height: 1.25rem;
   margin: 12px 0 0;

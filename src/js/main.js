@@ -352,6 +352,15 @@ const floorsInput = document.getElementById('floors-input');
 const liftsInput = document.getElementById('lifts-input');
 const errorMsg = document.getElementById('error-msg');
 const simulation = document.getElementById('simulation');
+const generateButton = document.getElementById('generate-btn');
+
+function updateGenerateState() {
+  generateButton.disabled = floorsInput.value === '' || liftsInput.value === '';
+}
+
+floorsInput.addEventListener('input', updateGenerateState);
+liftsInput.addEventListener('input', updateGenerateState);
+updateGenerateState();
 
 function validate(floors, lifts) {
   if (!Number.isInteger(floors) || !Number.isInteger(lifts)) {
