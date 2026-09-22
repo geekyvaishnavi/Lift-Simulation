@@ -1,3 +1,5 @@
+// CONFIG
+
 const MAX_FLOORS = 20;
 const MAX_LIFTS = 10;
 
@@ -5,9 +7,11 @@ const FLOOR_TRAVEL_MS = 2000;
 const DOOR_MS = 2500; 
 
 
+// DATA STORE
+
 const state = {
   floors: 0,
-  lifts: [],           // { id, currentFloor, targetFloor, isBusy }
+  lifts: [],           //      { id, currentFloor, targetFloor, isBusy }
   pendingRequests: []  
 };
 
@@ -33,10 +37,8 @@ function getFreeLifts() {
   return state.lifts.filter((lift) => !lift.isBusy);
 }
 
-function isFloorCovered(floor) {
-  return state.lifts.some(
-    (lift) => lift.targetFloor === floor || (!lift.isBusy && lift.currentFloor === floor)
-  );
+function isFloorTargeted(floor) {
+  return state.lifts.some((lift) => lift.targetFloor === floor);
 }
 
 function assignLift(lift, floor) {
@@ -61,6 +63,8 @@ function dequeueRequest() {
 function isQueued(floor) {
   return state.pendingRequests.includes(floor);
 }
+
+// UI
 
 const DOOR_HALVES = ['left', 'right'];
 
@@ -143,6 +147,10 @@ function renderSimulation() {
   simulation.appendChild(building);
 }
 
+
+// ENGINE
+
+
 function onBuildingClick(event) {
   const button = event.target.closest('.call-btn');
   if (!button) return;
@@ -150,7 +158,7 @@ function onBuildingClick(event) {
 }
 
 function handleCall(floor) {
-  if (isFloorCovered(floor) || isQueued(floor)) return;
+  if (isFloorTargeted(floor) || isQueued(floor)) return;
   dispatch(floor);
 }
 
@@ -187,7 +195,6 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-
 async function moveLift(lift) {
   const element = liftElements.get(lift.id);
   const travelMs = Math.abs(lift.targetFloor - lift.currentFloor) * FLOOR_TRAVEL_MS;
@@ -205,7 +212,7 @@ async function moveLift(lift) {
   onLiftArrived(lift);
 }
 
-
+// WIRING
 
 const form = document.getElementById('setup-form');
 const floorsInput = document.getElementById('floors-input');
