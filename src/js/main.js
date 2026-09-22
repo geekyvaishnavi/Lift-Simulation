@@ -1,28 +1,39 @@
 // CONFIG
 
+const MIN_FLOORS = 2;   
 const MAX_FLOORS = 20;
+const MIN_LIFTS = 1;
 const MAX_LIFTS = 10;
 
 const FLOOR_TRAVEL_MS = 2000;
 const DOOR_MS = 2500; 
+
+const UP = 1;
+const DOWN = -1;
 
 
 // DATA STORE
 
 const state = {
   floors: 0,
-  lifts: [],           //      { id, currentFloor, targetFloor, isBusy }
-  pendingRequests: []  
+  lifts: [],
+  pendingRequests: [], 
+  generation: 0        
 };
 
 const liftElements = new Map();
+const callButtons = new Map();   
 
 function createLift(id) {
   return {
     id,
     currentFloor: 1,
-    targetFloor: null,  
-    isBusy: false       
+    direction: 0,      
+    stops: [],
+    servingFloor: null,
+    closingFrom: null,
+    reopen: false,
+    isRunning: false
   };
 }
 
@@ -30,38 +41,69 @@ function initStore(floors, lifts) {
   state.floors = floors;
   state.lifts = Array.from({ length: lifts }, (_, i) => createLift(i + 1));
   state.pendingRequests = [];
+  state.generation += 1;
   liftElements.clear();
+  callButtons.clear();
 }
 
-function getFreeLifts() {
-  return state.lifts.filter((lift) => !lift.isBusy);
+function sameCall(a, b) {
+  return a.floor === b.floor && a.direction === b.direction;
 }
 
-function isFloorTargeted(floor) {
-  return state.lifts.some((lift) => lift.targetFloor === floor);
+function callKey(call) {
+  return `${call.floor}:${call.direction}`;
 }
 
-function assignLift(lift, floor) {
-  lift.isBusy = true;
-  lift.targetFloor = floor;
+function isCallKnown(call) {
+  return (
+    state.pendingRequests.some((queued) => sameCall(queued, call)) ||
+    state.lifts.some((lift) => lift.stops.some((stop) => sameCall(stop, call))) ||
+    state.lifts.some((lift) => lift.servingFloor === call.floor)
+  );
 }
 
-function releaseLift(lift) {
-  lift.currentFloor = lift.targetFloor;
-  lift.targetFloor = null;
-  lift.isBusy = false;
+function addStop(lift, call) {
+  lift.stops.push(call);
 }
 
-function enqueueRequest(floor) {
-  state.pendingRequests.push(floor);
+function isAhead(lift, floor) {
+  if (lift.direction === UP) return floor > lift.currentFloor;
+  if (lift.direction === DOWN) return floor < lift.currentFloor;
+  return false;
 }
 
-function dequeueRequest() {
-  return state.pendingRequests.shift() ?? null;
+function stopsAhead(lift) {
+  return lift.stops.filter((stop) => isAhead(lift, stop.floor));
 }
 
-function isQueued(floor) {
-  return state.pendingRequests.includes(floor);
+function canPickUpOnTheWay(lift, call) {
+  return lift.isRunning && lift.direction === call.direction && isAhead(lift, call.floor);
+}
+
+function nearestBy(items, floor, floorOf) {
+  return items.reduce((best, item) =>
+    Math.abs(floorOf(item) - floor) < Math.abs(floorOf(best) - floor) ? item : best
+  );
+}
+
+function isBetween(floor, from, to) {
+  return floor > Math.min(from, to) && floor < Math.max(from, to);
+}
+
+// How long until this lift could open its doors on that floor, or null if it
+// can't take the call at all.
+function estimateArrivalMs(lift, call) {
+  const travel = Math.abs(call.floor - lift.currentFloor) * FLOOR_TRAVEL_MS;
+
+  if (!lift.isRunning) return travel;
+  if (!canPickUpOnTheWay(lift, call)) return null;
+
+  // Every stop it already owes on the way costs a full door cycle, and a
+  // cycle in progress has to finish before it moves at all.
+  const onTheWay = lift.stops.filter((stop) => isBetween(stop.floor, lift.currentFloor, call.floor));
+  const doorCycles = onTheWay.length + (lift.servingFloor === null ? 0 : 1);
+
+  return travel + doorCycles * 2 * DOOR_MS;
 }
 
 // UI
@@ -73,13 +115,26 @@ function floorOffset(floor) {
 }
 
 function createCallButton(floor, direction) {
+  const isUp = direction === UP;
+
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = `call-btn call-${direction}`;
+  button.className = `call-btn call-${isUp ? 'up' : 'down'}`;
   button.dataset.floor = floor;
   button.dataset.direction = direction;
-  button.textContent = direction === 'up' ? 'Up' : 'Down';
+  button.textContent = isUp ? 'Up' : 'Down';
+  button.setAttribute('aria-pressed', 'false');
+
+  callButtons.set(callKey({ floor, direction }), button);
   return button;
+}
+
+function setCallLit(call, lit) {
+  const button = callButtons.get(callKey(call));
+  if (!button) return;
+
+  button.classList.toggle('lit', lit);
+  button.setAttribute('aria-pressed', String(lit));
 }
 
 function createFloorRow(floor) {
@@ -91,10 +146,10 @@ function createFloorRow(floor) {
   controls.className = 'floor-controls';
 
   if (floor < state.floors) {
-    controls.appendChild(createCallButton(floor, 'up'));
+    controls.appendChild(createCallButton(floor, UP));
   }
   if (floor > 1) {
-    controls.appendChild(createCallButton(floor, 'down'));
+    controls.appendChild(createCallButton(floor, DOWN));
   }
 
   const label = document.createElement('span');
@@ -124,10 +179,12 @@ function createLiftElement(lift) {
 function renderSimulation() {
   simulation.innerHTML = '';
   liftElements.clear();
+  callButtons.clear();
 
   const building = document.createElement('div');
   building.className = 'building';
   building.style.setProperty('--lift-count', state.lifts.length);
+  building.style.setProperty('--door-ms', `${DOOR_MS}ms`);
   building.addEventListener('click', onBuildingClick);
 
   for (let floor = state.floors; floor >= 1; floor -= 1) {
@@ -154,62 +211,138 @@ function renderSimulation() {
 function onBuildingClick(event) {
   const button = event.target.closest('.call-btn');
   if (!button) return;
-  handleCall(Number(button.dataset.floor));
+
+  handleCall({
+    floor: Number(button.dataset.floor),
+    direction: Number(button.dataset.direction)
+  });
 }
 
-function handleCall(floor) {
-  if (isFloorTargeted(floor) || isQueued(floor)) return;
-  dispatch(floor);
-}
+function handleCall(call) {
+  if (isCallKnown(call)) return;
 
-function nearestFreeLift(floor) {
-  const free = getFreeLifts();
-  if (free.length === 0) return null;
-
-  return free.reduce((best, lift) =>
-    Math.abs(lift.currentFloor - floor) < Math.abs(best.currentFloor - floor) ? lift : best
-  );
-}
-
-function dispatch(floor) {
-  const lift = nearestFreeLift(floor);
-  if (!lift) {
-    enqueueRequest(floor);
+  const closing = state.lifts.find((lift) => lift.closingFrom === call.floor);
+  if (closing) {
+    closing.reopen = true;
     return;
   }
 
-  assignLift(lift, floor);
-  moveLift(lift);
+  setCallLit(call, true);
+
+  const lift = pickLift(call);
+  if (!lift) {
+    state.pendingRequests.push(call);
+    return;
+  }
+
+  addStop(lift, call);
+  if (!lift.isRunning) runLift(lift);
 }
 
-function onLiftArrived(lift) {
-  releaseLift(lift);
+function pickLift(call) {
+  const candidates = state.lifts
+    .map((lift) => ({ lift, eta: estimateArrivalMs(lift, call) }))
+    .filter((candidate) => candidate.eta !== null);
 
-  const next = dequeueRequest();
-  if (next !== null) {
-    dispatch(next);
+  if (candidates.length === 0) return null;
+
+  // A lift that is already running wins a tie: no need to wake a second car.
+  const best = candidates.reduce((a, b) =>
+    b.eta < a.eta || (b.eta === a.eta && b.lift.isRunning && !a.lift.isRunning) ? b : a
+  );
+
+  return best.lift;
+}
+
+function takePendingCallsOnTheWay(lift) {
+  for (let i = state.pendingRequests.length - 1; i >= 0; i -= 1) {
+    if (canPickUpOnTheWay(lift, state.pendingRequests[i])) {
+      addStop(lift, state.pendingRequests.splice(i, 1)[0]);
+    }
   }
+}
+
+function nextDirection(lift) {
+  if (stopsAhead(lift).length > 0) return lift.direction;
+
+  const nearest = nearestBy(lift.stops, lift.currentFloor, (stop) => stop.floor);
+  return Math.sign(nearest.floor - lift.currentFloor) || lift.direction;
+}
+
+function stopHere(lift) {
+  const here = lift.stops.filter((stop) => stop.floor === lift.currentFloor);
+  if (here.length === 0) return null;
+
+  const sameWay = here.find((stop) => stop.direction === lift.direction);
+  if (sameWay) return sameWay;
+
+  return stopsAhead(lift).length === 0 ? here[0] : null;
+}
+
+async function runLift(lift) {
+  const generation = state.generation;
+  lift.isRunning = true;
+
+  while (state.generation === generation) {
+    takePendingCallsOnTheWay(lift);
+
+    if (lift.stops.length === 0) {
+      const next = state.pendingRequests.shift();
+      if (!next) break;
+      addStop(lift, next);
+      continue;
+    }
+
+    lift.direction = nextDirection(lift);
+
+    const stop = stopHere(lift);
+    if (stop) {
+      lift.stops.splice(lift.stops.indexOf(stop), 1);
+      setCallLit(stop, false);
+
+      await openAndCloseDoors(lift);
+      continue;
+    }
+
+    await moveOneFloor(lift);
+  }
+
+  lift.direction = 0;
+  lift.isRunning = false;
 }
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function moveLift(lift) {
+
+async function moveOneFloor(lift) {
   const element = liftElements.get(lift.id);
-  const travelMs = Math.abs(lift.targetFloor - lift.currentFloor) * FLOOR_TRAVEL_MS;
+  const nextFloor = lift.currentFloor + lift.direction;
 
-  element.style.transitionDuration = `${travelMs}ms`;
-  element.style.transform = floorOffset(lift.targetFloor);
-  await wait(travelMs);
+  element.style.transitionDuration = `${FLOOR_TRAVEL_MS}ms`;
+  element.style.transform = floorOffset(nextFloor);
+  await wait(FLOOR_TRAVEL_MS);
 
-  element.classList.add('doors-open');
-  await wait(DOOR_MS);
+  lift.currentFloor = nextFloor;
+}
 
-  element.classList.remove('doors-open');
-  await wait(DOOR_MS);
+async function openAndCloseDoors(lift) {
+  const element = liftElements.get(lift.id);
 
-  onLiftArrived(lift);
+  do {
+    lift.reopen = false;
+
+    lift.servingFloor = lift.currentFloor;
+    element.classList.add('doors-open');
+    await wait(DOOR_MS);
+
+    lift.servingFloor = null;
+    lift.closingFrom = lift.currentFloor;
+    element.classList.remove('doors-open');
+    await wait(DOOR_MS);
+    lift.closingFrom = null;
+  } while (lift.reopen);
 }
 
 // WIRING
@@ -224,8 +357,11 @@ function validate(floors, lifts) {
   if (!Number.isInteger(floors) || !Number.isInteger(lifts)) {
     return 'Please enter whole numbers for both fields.';
   }
-  if (floors < 1 || lifts < 1) {
-    return 'Floors and lifts must be at least 1.';
+  if (floors < MIN_FLOORS) {
+    return `Please enter at least ${MIN_FLOORS} floors — a lift needs somewhere to go.`;
+  }
+  if (lifts < MIN_LIFTS) {
+    return `Please enter at least ${MIN_LIFTS} lift.`;
   }
   if (floors > MAX_FLOORS) {
     return `Please enter at most ${MAX_FLOORS} floors.`;
