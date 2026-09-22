@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lift Simulation</title>
+  <link rel="stylesheet" href="css/main.css">
+  <script src="js/main.js" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Lift Simulation</h1>
+
+    <section class="setup">
+      <form id="setup-form" novalidate>
+        <div class="field">
+          <label for="floors-input">Number of floors</label>
+          <input type="number" id="floors-input" min="1" max="20" placeholder="1 - 20">
+        </div>
+
+        <div class="field">
+          <label for="lifts-input">Number of lifts</label>
+          <input type="number" id="lifts-input" min="1" max="10" placeholder="1 - 10">
+        </div>
+
+        <button type="submit">Generate</button>
+      </form>
+
+      <p id="error-msg" role="alert"></p>
+    </section>
+
+    <div id="simulation" class="hidden"></div>
+  </main>
+</body>
+</html>
